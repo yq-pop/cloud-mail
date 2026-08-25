@@ -48,9 +48,17 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
-          cache-dependency-path: "./mail-worker/pnpm-lock.yaml"
+          cache-dependency-path: |
+            ./mail-worker/pnpm-lock.yaml
+            ./mail-vue/pnpm-lock.yaml
 
-      - name: 📦 安装依赖 / Install dependencies
+      - name: 📦 构建前端静态页面 / Build mail-vue
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+        working-directory: ./mail-vue
+
+      - name: 📦 安装后端依赖 / Install mail-worker dependencies
         run: pnpm install --frozen-lockfile
         working-directory: ./mail-worker
 
