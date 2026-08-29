@@ -24,27 +24,28 @@ function truncateText(text, maxLength) {
 
 export default function emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText) {
 
-	let template = `<b>${escapeHtml(email.subject || '无主题')}</b>`;
+	let template = `📬 <b>${escapeHtml(email.subject || '无主题')}</b>`;
 
 	if (tgMsgFrom === 'only-name') {
-		template += `\n\nFrom：${escapeHtml(email.name || '')}`;
+		template += `\n\n👤 <b>发件人：</b>${escapeHtml(email.name || '')}`;
 	} else if (tgMsgFrom === 'show') {
 		const name = email.name ? `${escapeHtml(email.name)} ` : '';
-		template += `\n\nFrom：${name}&lt;${escapeHtml(email.sendEmail || '')}&gt;`;
+		template += `\n\n👤 <b>发件人：</b>${name}&lt;${escapeHtml(email.sendEmail || '')}&gt;`;
 	}
 
 	if (tgMsgTo === 'show') {
-		template += `\nTo：${escapeHtml(email.toEmail || '')}`;
+		template += `\n📥 <b>收件人：</b>${escapeHtml(email.toEmail || '')}`;
 	}
 
 	const rawText = emailUtils.formatText(email.text) || emailUtils.htmlToText(email.content) || '';
 	const text = escapeHtml(rawText.trim());
 
 	if (tgMsgText === 'show' && text) {
-		const prefix = `${template}\n\n`;
-		const maxTextLength = Math.max(0, TELEGRAM_MESSAGE_LIMIT - prefix.length);
+		const prefix = `${template}\n\n<blockquote>💬 <b>邮件正文：</b>\n\n`;
+		const suffix = `</blockquote>`;
+		const maxTextLength = Math.max(0, TELEGRAM_MESSAGE_LIMIT - prefix.length - suffix.length);
 		const truncated = truncateText(text, maxTextLength);
-		template += `\n\n<blockquote>${truncated}</blockquote>`;
+		template += `\n\n<blockquote>💬 <b>邮件正文：</b>\n\n${truncated}</blockquote>`;
 	}
 
 	return template;

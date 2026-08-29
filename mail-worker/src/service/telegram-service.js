@@ -1,6 +1,7 @@
 import orm from '../entity/orm';
 import email from '../entity/email';
 import settingService from './setting-service';
+import extractEmailActions from './email-action-extractor';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -57,28 +58,12 @@ const telegramService = {
 			return;
 		}
 
-		// 生成直连 Worker 服务的网页 URL（自有独立域名，避免 Telegram 拦截）
+		// 生成直连 Worker 服务的网页 URL（自有独立域名）
 		const jwtToken = await jwtUtils.generateToken(c, { emailId: email.emailId });
 		const webAppUrl = customDomain ? `${domainUtils.toOssDomain(customDomain)}/api/telegram/getEmail/${jwtToken}` : 'https://www.cloudflare.com/404';
 
-		// 使用标准 url 属性（而非 web_app），点击后 100% 唤起系统默认浏览器打开
-		const inlineKeyboard = [
-			[
-				{
-					text: '⚡ 即时预览 (在浏览器中打开)',
-					url: webAppUrl
-				}
-			]
-		];
-
-		if (email.code) {
-			inlineKeyboard.push([
-				{
-					text: `🔑 复制验证码: ${email.code}`,
-					copy_text: { text: email.code }
-				}
-			]);
-		}
+		// 动态智能提取操作按钮组（包含主要行动、官网/控制台链接、验证码复制、网页完整HTML视图）
+		const inlineKeyboard = extractEmailActions(email.content, email, webAppUrl);
 
 		const messageText = emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText);
 
