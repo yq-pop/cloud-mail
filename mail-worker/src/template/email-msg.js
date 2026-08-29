@@ -22,7 +22,7 @@ function truncateText(text, maxLength) {
 	return text.slice(0, maxLength - TRUNCATED_SUFFIX.length) + TRUNCATED_SUFFIX;
 }
 
-export default function emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText, telegraphUrl) {
+export default function emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText) {
 
 	let template = `<b>${escapeHtml(email.subject || '无主题')}</b>`;
 
@@ -42,13 +42,9 @@ export default function emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText, t
 
 	if (tgMsgText === 'show' && text) {
 		const prefix = `${template}\n\n`;
-		const maxTextLength = Math.max(0, TELEGRAM_MESSAGE_LIMIT - prefix.length - (telegraphUrl ? 120 : 0));
+		const maxTextLength = Math.max(0, TELEGRAM_MESSAGE_LIMIT - prefix.length);
 		const truncated = truncateText(text, maxTextLength);
 		template += `\n\n<blockquote>${truncated}</blockquote>`;
-	}
-
-	if (telegraphUrl) {
-		template += `\n\n🔗 <a href="${telegraphUrl}">⚡ 即时预览 (Instant View)</a>`;
 	}
 
 	return template;

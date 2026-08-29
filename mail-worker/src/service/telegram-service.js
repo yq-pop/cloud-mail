@@ -1,7 +1,6 @@
 import orm from '../entity/orm';
 import email from '../entity/email';
 import settingService from './setting-service';
-import telegraphService from './telegraph-service';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -46,7 +45,7 @@ const telegramService = {
 
 	async sendEmailToBot(c, email) {
 
-		const { tgBotToken, tgChatId, customDomain, r2Domain, tgMsgTo, tgMsgFrom, tgMsgText } = await settingService.query(c);
+		const { tgBotToken, tgChatId, customDomain, tgMsgTo, tgMsgFrom, tgMsgText } = await settingService.query(c);
 
 		if (!tgBotToken || !tgChatId) {
 			return;
@@ -58,21 +57,16 @@ const telegramService = {
 			return;
 		}
 
-		// 发布到 Telegraph 生成原生图文预览页
-		const telegraphUrl = await telegraphService.publishEmail(c, email, r2Domain);
-
-		// 如果 Telegraph 发布失败，回退到系统自定义域/Worker 链接
+		// 生成直连 Worker 服务的网页 URL（自有独立域名，避免 Telegram 拦截）
 		const jwtToken = await jwtUtils.generateToken(c, { emailId: email.emailId });
 		const webAppUrl = customDomain ? `${domainUtils.toOssDomain(customDomain)}/api/telegram/getEmail/${jwtToken}` : 'https://www.cloudflare.com/404';
 
-		const targetUrl = telegraphUrl || webAppUrl;
-
-		// 使用标准 url 属性（而非 web_app），点击后在系统默认浏览器中打开
+		// 使用标准 url 属性（而非 web_app），点击后 100% 唤起系统默认浏览器打开
 		const inlineKeyboard = [
 			[
 				{
 					text: '⚡ 即时预览 (在浏览器中打开)',
-					url: targetUrl
+					url: webAppUrl
 				}
 			]
 		];
@@ -86,7 +80,7 @@ const telegramService = {
 			]);
 		}
 
-		const messageText = emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText, telegraphUrl);
+		const messageText = emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText);
 
 		await Promise.all(tgChatIds.map(async chatId => {
 			try {
@@ -101,6 +95,9 @@ const telegramService = {
 						text: messageText,
 						reply_markup: {
 							inline_keyboard: inlineKeyboard
+						},
+						link_preview_options: {
+							is_disabled: true
 						}
 					})
 				});
