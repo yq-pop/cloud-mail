@@ -1,6 +1,7 @@
 import orm from '../entity/orm';
 import email from '../entity/email';
 import settingService from './setting-service';
+import telegraphService from './telegraph-service';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -45,18 +46,33 @@ const telegramService = {
 
 	async sendEmailToBot(c, email) {
 
-		const { tgBotToken, tgChatId, customDomain, tgMsgTo, tgMsgFrom, tgMsgText } = await settingService.query(c);
+		const { tgBotToken, tgChatId, customDomain, r2Domain, tgMsgTo, tgMsgFrom, tgMsgText } = await settingService.query(c);
 
-		const tgChatIds = tgChatId.split(',');
+		if (!tgBotToken || !tgChatId) {
+			return;
+		}
 
-		const jwtToken = await jwtUtils.generateToken(c, { emailId: email.emailId })
+		const tgChatIds = tgChatId.split(',').map(id => id.trim()).filter(Boolean);
 
-		const webAppUrl = customDomain ? `${domainUtils.toOssDomain(customDomain)}/api/telegram/getEmail/${jwtToken}` : 'https://www.cloudflare.com/404'
+		if (tgChatIds.length === 0) {
+			return;
+		}
+
+		// 发布到 Telegraph 生成原生图文预览页
+		const telegraphUrl = await telegraphService.publishEmail(c, email, r2Domain);
+
+		// 如果 Telegraph 发布失败，回退到系统自定义域/Worker 链接
+		const jwtToken = await jwtUtils.generateToken(c, { emailId: email.emailId });
+		const webAppUrl = customDomain ? `${domainUtils.toOssDomain(customDomain)}/api/telegram/getEmail/${jwtToken}` : 'https://www.cloudflare.com/404';
+
+		const targetUrl = telegraphUrl || webAppUrl;
+
+		// 使用标准 url 属性（而非 web_app），点击后在系统默认浏览器中打开
 		const inlineKeyboard = [
 			[
 				{
-					text: 'View',
-					web_app: { url: webAppUrl }
+					text: '⚡ 即时预览 (在浏览器中打开)',
+					url: targetUrl
 				}
 			]
 		];
@@ -64,11 +80,13 @@ const telegramService = {
 		if (email.code) {
 			inlineKeyboard.push([
 				{
-					text: email.code,
+					text: `🔑 复制验证码: ${email.code}`,
 					copy_text: { text: email.code }
 				}
 			]);
 		}
+
+		const messageText = emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText, telegraphUrl);
 
 		await Promise.all(tgChatIds.map(async chatId => {
 			try {
@@ -80,7 +98,7 @@ const telegramService = {
 					body: JSON.stringify({
 						chat_id: chatId,
 						parse_mode: 'HTML',
-						text: emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText),
+						text: messageText,
 						reply_markup: {
 							inline_keyboard: inlineKeyboard
 						}

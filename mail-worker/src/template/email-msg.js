@@ -1,10 +1,11 @@
-import emailUtils from '../utils/email-utils';
+import emailUtils from '../utils/email-utils.js';
 
 const TELEGRAM_MESSAGE_LIMIT = 3500;
 const TRUNCATED_SUFFIX = '...';
 
 function escapeHtml(text = '') {
-	return text
+	return String(text || '')
+		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;');
 }
@@ -21,44 +22,34 @@ function truncateText(text, maxLength) {
 	return text.slice(0, maxLength - TRUNCATED_SUFFIX.length) + TRUNCATED_SUFFIX;
 }
 
-export default function emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText) {
+export default function emailMsgTemplate(email, tgMsgTo, tgMsgFrom, tgMsgText, telegraphUrl) {
 
-	let template = `<b>${escapeHtml(email.subject || '')}</b>`
+	let template = `<b>${escapeHtml(email.subject || '无主题')}</b>`;
 
-		if (tgMsgFrom === 'only-name') {
-			template += `
-
-From\u200B：${escapeHtml(email.name || '')}`
-		}
-
-		if (tgMsgFrom === 'show') {
-			template += `
-
-From\u200B：${escapeHtml(email.name || '')}  &lt;${escapeHtml(email.sendEmail || '')}&gt;`
-		}
-
-		if(tgMsgTo === 'show' && tgMsgFrom === 'hide') {
-			template += `
-
-To：\u200B${escapeHtml(email.toEmail || '')}`
-
-		} else if(tgMsgTo === 'show') {
-		template += `
-To：\u200B${escapeHtml(email.toEmail || '')}`
+	if (tgMsgFrom === 'only-name') {
+		template += `\n\nFrom：${escapeHtml(email.name || '')}`;
+	} else if (tgMsgFrom === 'show') {
+		const name = email.name ? `${escapeHtml(email.name)} ` : '';
+		template += `\n\nFrom：${name}&lt;${escapeHtml(email.sendEmail || '')}&gt;`;
 	}
 
-	const text = escapeHtml(emailUtils.formatText(email.text) || emailUtils.htmlToText(email.content));
+	if (tgMsgTo === 'show') {
+		template += `\nTo：${escapeHtml(email.toEmail || '')}`;
+	}
 
-	if(tgMsgText === 'show') {
-		const prefix = `${template}
+	const rawText = emailUtils.formatText(email.text) || emailUtils.htmlToText(email.content) || '';
+	const text = escapeHtml(rawText.trim());
 
-`;
-		const maxTextLength = Math.max(0, TELEGRAM_MESSAGE_LIMIT - prefix.length);
-		template += `
+	if (tgMsgText === 'show' && text) {
+		const prefix = `${template}\n\n`;
+		const maxTextLength = Math.max(0, TELEGRAM_MESSAGE_LIMIT - prefix.length - (telegraphUrl ? 120 : 0));
+		const truncated = truncateText(text, maxTextLength);
+		template += `\n\n<blockquote>${truncated}</blockquote>`;
+	}
 
-${truncateText(text, maxTextLength)}`
+	if (telegraphUrl) {
+		template += `\n\n🔗 <a href="${telegraphUrl}">⚡ 即时预览 (Instant View)</a>`;
 	}
 
 	return template;
-
 }
