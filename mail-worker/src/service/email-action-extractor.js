@@ -199,12 +199,12 @@ export function extractEmailActions(html, email = {}, webAppUrl = '') {
 		]);
 	}
 
-	// 4. Full HTML View Button (always present as fallback view)
+	// 4. Full HTML View Button (always present as fallback view, opens in system default browser)
 	if (webAppUrl) {
 		buttons.push([
 			{
 				text: '📖 网页完整 HTML 视图',
-				web_app: { url: webAppUrl }
+				url: webAppUrl
 			}
 		]);
 	}
