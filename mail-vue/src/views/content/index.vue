@@ -9,12 +9,20 @@
       </span>
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openReply" icon="fluent-mdl2:reply" width="19" height="19" />
       <Icon class="icon" v-if="emailStore.contentData.showReply" v-perm="'email:send'"  @click="openForward" icon="iconoir:arrow-up-right" width="20" height="20" />
+      <el-tooltip effect="dark" :content="$t('mailTranslation')">
+        <span class="icon translate-trigger" :class="{ active: manualTranslateOpen || Boolean(translatedSubject) }" @click="manualTranslateOpen = !manualTranslateOpen">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 8h10M10 5v3m-4 0c1 3.8 3.6 6.8 7 8.5M13 8c-.9 3.5-3.2 6.4-7 8.5" />
+            <path d="M13.5 19l3.2-8.5L20 19m-5.5-2.5h4.5" />
+          </svg>
+        </span>
+      </el-tooltip>
     </div>
     <div></div>
     <el-scrollbar class="scrollbar">
       <div class="container">
         <div class="email-title">
-          {{ email.subject }}
+          {{ translatedSubject || email.subject }}
         </div>
         <div class="content">
           <div class="email-info">
@@ -42,10 +50,24 @@
             <el-alert v-if="email.status === 4" :closable="false" :title="$t('complained')" class="email-msg" type="warning" show-icon />
             <el-alert v-if="email.status === 5" :closable="false" :title="$t('delayed')" class="email-msg" type="warning" show-icon />
           </div>
-          <el-scrollbar class="htm-scrollbar" :class="!email.attList?.length ? 'bottom-distance' : ''">
-            <ShadowHtml class="shadow-html" :html="formatImage(email.content)" v-if="email.content" />
-            <pre v-else class="email-text" >{{email.text}}</pre>
-          </el-scrollbar>
+          <MailTranslation
+            :email="email"
+            :manual-open="manualTranslateOpen"
+            @update:translated-subject="translatedSubject = $event"
+          >
+            <template #default="{ showingTranslation, translatedHtml, translatedText, translatedTarget }">
+              <el-scrollbar class="htm-scrollbar" :class="!email.attList?.length ? 'bottom-distance' : ''" :lang="showingTranslation ? translatedTarget : undefined">
+                <template v-if="showingTranslation">
+                  <ShadowHtml class="shadow-html" :html="formatTranslatedHtml(translatedHtml)" v-if="translatedHtml" />
+                  <pre v-else class="email-text">{{ translatedText }}</pre>
+                </template>
+                <template v-else>
+                  <ShadowHtml class="shadow-html" :html="formatImage(email.content)" v-if="email.content" />
+                  <pre v-else class="email-text">{{ email.text }}</pre>
+                </template>
+              </el-scrollbar>
+            </template>
+          </MailTranslation>
           <div class="att" v-if="email.attList?.length > 0">
             <div class="att-title">
               <span>{{$t('attachments')}}</span>
@@ -83,6 +105,8 @@
 </template>
 <script setup>
 import ShadowHtml from '@/components/shadow-html/index.vue'
+import MailTranslation from '@/components/mail-translation/index.vue'
+import {sanitizeEmailHtml} from '@/utils/email-html.js'
 import {computed, reactive, ref, watch, onMounted, onUnmounted, nextTick} from "vue";
 import {useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
@@ -113,6 +137,8 @@ let senderResizeObserver = null
 
 const showPreview = ref(false)
 const srcList = reactive([])
+const manualTranslateOpen = ref(false)
+const translatedSubject = ref('')
 
 
 const email = computed(() => emailStore.contentData.email || {
@@ -136,6 +162,11 @@ const sentViaEmail = computed(() => {
 
 watch(() => accountStore.currentAccountId, () => {
   handleBack()
+})
+
+watch(() => email.value?.emailId, () => {
+  manualTranslateOpen.value = false
+  translatedSubject.value = ''
 })
 
 let readRequesting = false
@@ -245,6 +276,10 @@ function formatImage(content) {
   return  content.replace(/{{domain}}/g, toOssDomain(domain) + '/');
 }
 
+function formatTranslatedHtml(content) {
+  return sanitizeEmailHtml(formatImage(content));
+}
+
 function showImage(key) {
   if (!isImage(key)) return;
   const url = cvtR2Url(key)
@@ -345,6 +380,16 @@ const handleDelete = () => {
   }
   .icon {
     cursor: pointer;
+  }
+  .translate-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-regular);
+    transition: color 0.15s ease;
+    &:hover, &.active {
+      color: var(--el-color-primary);
+    }
   }
 }
 
