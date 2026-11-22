@@ -1,11 +1,7 @@
 name: 🚀 Deploy cloud-mail to Cloudflare Workers
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - "mail-worker/**"
-      - "mail-vue/**"
+  # 仅保留手动触发，避免 push main 时用单域名/Secrets 覆盖线上多域名及控制台变量
   workflow_dispatch:
 
 jobs:
