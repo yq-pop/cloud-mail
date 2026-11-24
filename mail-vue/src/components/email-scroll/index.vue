@@ -83,7 +83,7 @@
                   <div class="email-text">
                     <span class="email-subject" :style="(item.unread === EmailUnreadEnum.UNREAD && showUnread)  ? 'font-weight: bold' : ''">
                       <div class="unread" v-if="!isMobile && (item.unread === EmailUnreadEnum.UNREAD && showUnread) "/>
-                      <span v-if="item.code" class="code-tag" @click.stop="copyCode(item.code)">[{{ t('codeLabel') }}{{ item.code }}]</span>
+                      <span v-if="item.code" class="code-tag" :title="t('copyCode')" @click.stop="copyCode(item.code)">[{{ t('codeLabel') }}{{ item.code }}]</span>
                       <span class="subject-text">
                         <slot name="subject" :email="item" >
                           <span v-html="item.subjectHtml"></span>
@@ -1249,13 +1249,26 @@ function renderHighlight(value) {
         flex: 0 0 auto;
         max-width: 170px;
         height: 20px;
-        line-height: 20px;
-        font-size: 14px;
-        color: var(--el-text-color-primary);
+        padding: 0 7px;
+        border-radius: 5px;
+        background: var(--el-color-primary-light-9);
+        border: 1px solid var(--el-color-primary-light-7);
+        color: var(--el-color-primary);
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        line-height: 18px;
+        font-size: 12px;
+        box-sizing: border-box;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
         cursor: pointer;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+
+        &:hover {
+          background: var(--el-color-primary-light-8);
+          border-color: var(--el-color-primary-light-5);
+        }
       }
 
       .subject-text {
