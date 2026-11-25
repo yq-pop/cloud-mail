@@ -229,6 +229,7 @@ const en = {
     forwardAll: 'All',
     rules: 'Rules',
     turnstileSetting: 'Turnstile',
+    turnstileKeyRequired: 'Please configure both Turnstile Site Key and Secret Key first',
     signUpVerification: 'Sign up verification',
     loginVerification: 'Login verification',
     addEmailVerification: 'Add email verification',

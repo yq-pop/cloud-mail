@@ -8,6 +8,7 @@ import constant from '../const/constant';
 import BizError from '../error/biz-error';
 import {t} from '../i18n/i18n'
 import verifyRecordService from './verify-record-service';
+import turnstileService from './turnstile-service';
 import userContext from '../security/user-context';
 import domainUtils from '../utils/domain-uitls';
 
@@ -77,6 +78,9 @@ const settingService = {
 			verifyRecordService.selectListByIP(c)
 		]);
 
+		const turnstileConfigured = turnstileService.isConfigured(settingRow);
+		settingRow.turnstileConfigured = turnstileConfigured;
+
 		settingRow.secretKey = settingRow.secretKey ? `${settingRow.secretKey.slice(0, 6)}******` : null;
 
 		Object.keys(settingRow.resendTokens).forEach(key => {
@@ -93,17 +97,19 @@ const settingService = {
 		let addVerifyOpen = false
 		let loginVerifyOpen = false
 
-		recordList.forEach(row => {
-			if (row.type === verifyRecordType.REG) {
-				regVerifyOpen = row.count >= settingRow.regVerifyCount
-			}
-			if (row.type === verifyRecordType.ADD) {
-				addVerifyOpen = row.count >= settingRow.addVerifyCount
-			}
-			if (row.type === verifyRecordType.LOGIN) {
-				loginVerifyOpen = row.count >= settingRow.loginVerifyCount
-			}
-		})
+		if (turnstileConfigured) {
+			recordList.forEach(row => {
+				if (row.type === verifyRecordType.REG) {
+					regVerifyOpen = row.count >= settingRow.regVerifyCount
+				}
+				if (row.type === verifyRecordType.ADD) {
+					addVerifyOpen = row.count >= settingRow.addVerifyCount
+				}
+				if (row.type === verifyRecordType.LOGIN) {
+					loginVerifyOpen = row.count >= settingRow.loginVerifyCount
+				}
+			})
+		}
 
 		settingRow.regVerifyOpen = regVerifyOpen
 		settingRow.addVerifyOpen = addVerifyOpen
@@ -141,6 +147,42 @@ const settingService = {
 
 		if (params.loginVerifyCount !== undefined && (!Number.isSafeInteger(params.loginVerifyCount) || params.loginVerifyCount < 1)) {
 			params.loginVerifyCount = 1;
+		}
+
+		const nextSiteKey = params.siteKey !== undefined
+			? String(params.siteKey || '').trim()
+			: String(settingData.siteKey || '').trim();
+		const nextSecretKey = params.secretKey !== undefined
+			? String(params.secretKey || '').trim()
+			: String(settingData.secretKey || '').trim();
+		const nextTurnstileConfigured = Boolean(nextSiteKey && nextSecretKey);
+
+		if (params.siteKey !== undefined) {
+			params.siteKey = nextSiteKey || null;
+		}
+		if (params.secretKey !== undefined) {
+			params.secretKey = nextSecretKey || null;
+		}
+
+		if ((params.siteKey !== undefined || params.secretKey !== undefined) && !nextTurnstileConfigured) {
+			params.registerVerify = settingConst.registerVerify.CLOSE;
+			params.loginVerify = settingConst.loginVerify.CLOSE;
+			params.addEmailVerify = settingConst.addEmailVerify.CLOSE;
+		} else if (!nextTurnstileConfigured) {
+			const verifyFields = [
+				['registerVerify', settingConst.registerVerify.CLOSE],
+				['loginVerify', settingConst.loginVerify.CLOSE],
+				['addEmailVerify', settingConst.addEmailVerify.CLOSE],
+			];
+			for (const [field, closeVal] of verifyFields) {
+				if (
+					params[field] !== undefined &&
+					Number(params[field]) !== closeVal &&
+					Number(params[field]) !== Number(settingData[field])
+				) {
+					throw new BizError(t('turnstileKeyRequired'), 400);
+				}
+			}
 		}
 
 		await orm(c).update(setting).set({ ...params }).returning().get();
@@ -204,6 +246,7 @@ const settingService = {
 
 		const settingRow = await this.get(c);
 		const token = await userContext.getToken(c);
+		const turnstileConfigured = Boolean(settingRow.turnstileConfigured);
 
 		return {
 			register: settingRow.register,
@@ -211,19 +254,19 @@ const settingService = {
 			manyEmail: settingRow.manyEmail,
 			addEmail: settingRow.addEmail,
 			autoRefresh: settingRow.autoRefresh,
-			addEmailVerify: settingRow.addEmailVerify,
-			registerVerify: settingRow.registerVerify,
-			loginVerify: settingRow.loginVerify,
+			addEmailVerify: turnstileConfigured ? settingRow.addEmailVerify : settingConst.addEmailVerify.CLOSE,
+			registerVerify: turnstileConfigured ? settingRow.registerVerify : settingConst.registerVerify.CLOSE,
+			loginVerify: turnstileConfigured ? settingRow.loginVerify : settingConst.loginVerify.CLOSE,
 			send: settingRow.send,
 			r2Domain: settingRow.r2Domain,
-			siteKey: settingRow.siteKey,
+			siteKey: turnstileConfigured ? String(settingRow.siteKey).trim() : null,
 			background: settingRow.background,
 			loginOpacity: settingRow.loginOpacity,
 			domainList: settingRow.loginDomain === 1 && !token ? [] : settingRow.domainList,
 			regKey: settingRow.regKey,
-			regVerifyOpen: settingRow.regVerifyOpen,
-			addVerifyOpen: settingRow.addVerifyOpen,
-			loginVerifyOpen: settingRow.loginVerifyOpen,
+			regVerifyOpen: turnstileConfigured ? settingRow.regVerifyOpen : false,
+			addVerifyOpen: turnstileConfigured ? settingRow.addVerifyOpen : false,
+			loginVerifyOpen: turnstileConfigured ? settingRow.loginVerifyOpen : false,
 			noticeTitle: settingRow.noticeTitle,
 			noticeContent: settingRow.noticeContent,
 			noticeType: settingRow.noticeType,

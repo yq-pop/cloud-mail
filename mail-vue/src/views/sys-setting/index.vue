@@ -300,15 +300,15 @@
                     <Icon icon="fluent:settings-48-regular" width="18" height="18"/>
                   </el-button>
                   <el-select
-                      @change="change"
+                      :model-value="setting.registerVerify"
+                      @change="changeTurnstileVerify('registerVerify', $event)"
                       :style="`width: ${ locale === 'en' ? 100 : 80 }px;`"
-                      v-model="setting.registerVerify"
                       placeholder="Select"
                       class="bot-verify-select"
                   >
-                    <el-option key="1" :value="0" :label="$t('enable')"/>
-                    <el-option key="1" :value="1" :label="$t('disable')"/>
-                    <el-option key="1" :value="2" :label="$t('rulesVerify')"/>
+                    <el-option :value="0" :label="$t('enable')"/>
+                    <el-option :value="1" :label="$t('disable')"/>
+                    <el-option :value="2" :label="$t('rulesVerify')"/>
                   </el-select>
                 </div>
               </div>
@@ -321,7 +321,7 @@
                   </el-button>
                   <el-select
                       :model-value="setting.loginVerify"
-                      @change="changeField('loginVerify', $event)"
+                      @change="changeTurnstileVerify('loginVerify', $event)"
                       :style="`width: ${ locale === 'en' ? 100 : 80 }px;`"
                       class="bot-verify-select"
                   >
@@ -338,15 +338,15 @@
                     <Icon icon="fluent:settings-48-regular" width="18" height="18"/>
                   </el-button>
                   <el-select
-                      @change="change"
+                      :model-value="setting.addEmailVerify"
+                      @change="changeTurnstileVerify('addEmailVerify', $event)"
                       :style="`width: ${ locale === 'en' ? 100 : 80 }px;`"
-                      v-model="setting.addEmailVerify"
                       placeholder="Select"
                       class="bot-verify-select"
                   >
-                    <el-option key="1" :value="0" :label="$t('enable')"/>
-                    <el-option key="1" :value="1" :label="$t('disable')"/>
-                    <el-option key="1" :value="2" :label="$t('rulesVerify')"/>
+                    <el-option :value="0" :label="$t('enable')"/>
+                    <el-option :value="1" :label="$t('disable')"/>
+                    <el-option :value="2" :label="$t('rulesVerify')"/>
                   </el-select>
                 </div>
               </div>
@@ -1579,8 +1579,8 @@ function saveOauth() {
 
 function saveTurnstileKey() {
   const settingForm = {}
-  settingForm.siteKey = turnstileForm.siteKey
-  settingForm.secretKey = turnstileForm.secretKey
+  settingForm.siteKey = String(turnstileForm.siteKey || '').trim()
+  settingForm.secretKey = String(turnstileForm.secretKey || '').trim()
   editSetting(settingForm)
 }
 
@@ -1690,8 +1690,26 @@ function change(e) {
 
 function changeField(key, value) {
   if (!settingReady.value || settingLoading.value) return
+  backupSetting()
   setting.value[key] = value
   editSetting({[key]: value}, false)
+}
+
+function changeTurnstileVerify(key, value) {
+  if (!settingReady.value || settingLoading.value) return
+  const hasTurnstileKeys = Boolean(
+    String(setting.value.siteKey || '').trim() &&
+    String(setting.value.secretKey || '').trim()
+  )
+  if (value !== 1 && !hasTurnstileKeys) {
+    ElMessage({
+      message: t('turnstileKeyRequired'),
+      type: 'warning',
+      plain: true
+    })
+    return
+  }
+  changeField(key, value)
 }
 
 function saveTitle() {

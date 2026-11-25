@@ -62,6 +62,7 @@ const zh = {
 	starNotExistEmail: '星标的邮件不存在',
 	emptyBotToken: '需要进行人机验证',
 	botVerifyFail: '人机验证失败,请重试',
+	turnstileKeyRequired: '请先配置 Turnstile Site Key 和 Secret Key',
 	authExpired: '身份认证失效,请重新登录',
 	unauthorized: '权限不足',
 	bannedSend: '你没有邮件发送权限',

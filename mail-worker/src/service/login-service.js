@@ -26,7 +26,9 @@ const loginService = {
 
 		const { email, password, token, code } = params;
 
-		let { regKey, register, registerVerify, regVerifyCount, minEmailPrefix, emailPrefixFilter } = await settingService.query(c)
+		const settingRow = await settingService.query(c)
+		let { regKey, register, registerVerify, regVerifyCount, minEmailPrefix, emailPrefixFilter } = settingRow
+		const turnstileConfigured = turnstileService.isConfigured(settingRow)
 
 		if (oauth) {
 			registerVerify = settingConst.registerVerify.CLOSE;
@@ -114,12 +116,12 @@ const loginService = {
 
 		let regVerifyOpen = false
 
-		if (registerVerify === settingConst.registerVerify.OPEN) {
+		if (turnstileConfigured && registerVerify === settingConst.registerVerify.OPEN) {
 			regVerifyOpen = true
 			await turnstileService.verify(c,token)
 		}
 
-		if (registerVerify === settingConst.registerVerify.COUNT) {
+		if (turnstileConfigured && registerVerify === settingConst.registerVerify.COUNT) {
 			regVerifyOpen = await verifyRecordService.isOpenRegVerify(c, regVerifyCount);
 			if (regVerifyOpen) {
 				await turnstileService.verify(c,token)
@@ -158,7 +160,7 @@ const loginService = {
 
 		await userService.updateUserInfo(c, userId, true);
 
-		if (registerVerify === settingConst.registerVerify.COUNT && !regVerifyOpen) {
+		if (turnstileConfigured && registerVerify === settingConst.registerVerify.COUNT && !regVerifyOpen) {
 			const row = await verifyRecordService.increaseRegCount(c);
 			return {regVerifyOpen: row.count >= regVerifyCount}
 		}
@@ -230,9 +232,12 @@ const loginService = {
 		}
 
 		if (!noVerifyPwd) {
-			const { loginVerify, loginVerifyCount = 1 } = await settingService.query(c);
-			if (loginVerify === settingConst.loginVerify.OPEN ||
-				(loginVerify === settingConst.loginVerify.COUNT && !await verifyRecordService.consumeLoginAttempt(c, loginVerifyCount))) {
+			const settingRow = await settingService.query(c);
+			const { loginVerify, loginVerifyCount = 1 } = settingRow;
+			if (turnstileService.isConfigured(settingRow) && (
+				loginVerify === settingConst.loginVerify.OPEN ||
+				(loginVerify === settingConst.loginVerify.COUNT && !await verifyRecordService.consumeLoginAttempt(c, loginVerifyCount))
+			)) {
 				await turnstileService.verify(c, token);
 			}
 		}

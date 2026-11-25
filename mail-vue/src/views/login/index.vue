@@ -270,8 +270,12 @@ function renderTurnstile(api, container) {
   })
 }
 
+function hasTurnstileSiteKey() {
+  return Boolean(String(settingStore.settings.siteKey || '').trim())
+}
+
 async function showTurnstile() {
-  if (turnstileLoading) return
+  if (!hasTurnstileSiteKey() || turnstileLoading) return
   verifyToken = ''
   botJsError.value = false
   verifyShow.value = true
@@ -305,7 +309,7 @@ async function showTurnstile() {
 }
 
 function needsTurnstile(mode, open) {
-  if (verifyToken || (mode !== 0 && !(mode === 2 && open))) return false
+  if (!hasTurnstileSiteKey() || verifyToken || (mode !== 0 && !(mode === 2 && open))) return false
   if (!verifyShow.value || botJsError.value) showTurnstile()
   else if (!turnstileLoading) ElMessage({message: t('botVerifyMsg'), type: 'error', plain: true})
   return true
@@ -491,8 +495,8 @@ const submit = () => {
   const token = verifyToken
   loginLoading.value = true
   login(email, form.password, token).then(data => saveToken(data.token)).catch(res => {
-    if (res.code === 400) settingStore.settings.loginVerifyOpen = true
-    if (show.value === 'login' && (token || res.code === 400)) showTurnstile()
+    if (res.code === 400 && hasTurnstileSiteKey()) settingStore.settings.loginVerifyOpen = true
+    if (show.value === 'login' && hasTurnstileSiteKey() && (token || res.code === 400)) showTurnstile()
   }).finally(() => {
     loginLoading.value = false
   })
@@ -635,8 +639,8 @@ function submitRegister() {
 
     registerLoading.value = false
 
-    if (res.code === 400) settingStore.settings.regVerifyOpen = true
-    if (show.value === 'register' && (form.token || res.code === 400)) showTurnstile()
+    if (res.code === 400 && hasTurnstileSiteKey()) settingStore.settings.regVerifyOpen = true
+    if (show.value === 'register' && hasTurnstileSiteKey() && (form.token || res.code === 400)) showTurnstile()
   });
 }
 

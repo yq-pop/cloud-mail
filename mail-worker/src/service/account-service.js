@@ -17,7 +17,9 @@ const accountService = {
 
 	async add(c, params, userId) {
 
-		const { addEmailVerify , addEmail, manyEmail, addVerifyCount, minEmailPrefix, emailPrefixFilter } = await settingService.query(c);
+		const settingRow = await settingService.query(c);
+		const { addEmailVerify , addEmail, manyEmail, addVerifyCount, minEmailPrefix, emailPrefixFilter } = settingRow;
+		const turnstileConfigured = turnstileService.isConfigured(settingRow);
 
 		let { email, token } = params;
 
@@ -83,12 +85,12 @@ const accountService = {
 
 		let addVerifyOpen = false
 
-		if (addEmailVerify === settingConst.addEmailVerify.OPEN) {
+		if (turnstileConfigured && addEmailVerify === settingConst.addEmailVerify.OPEN) {
 			addVerifyOpen = true
 			await turnstileService.verify(c, token);
 		}
 
-		if (addEmailVerify === settingConst.addEmailVerify.COUNT) {
+		if (turnstileConfigured && addEmailVerify === settingConst.addEmailVerify.COUNT) {
 			addVerifyOpen = await verifyRecordService.isOpenAddVerify(c, addVerifyCount);
 			if (addVerifyOpen) {
 				await turnstileService.verify(c,token)
@@ -98,7 +100,7 @@ const accountService = {
 
 		accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email) }).returning().get();
 
-		if (addEmailVerify === settingConst.addEmailVerify.COUNT && !addVerifyOpen) {
+		if (turnstileConfigured && addEmailVerify === settingConst.addEmailVerify.COUNT && !addVerifyOpen) {
 			const row = await verifyRecordService.increaseAddCount(c);
 			addVerifyOpen = row.count >= addVerifyCount
 		}

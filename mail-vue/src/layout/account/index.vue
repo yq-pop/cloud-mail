@@ -477,7 +477,9 @@ function submit() {
     return
   }
 
-  if (!verifyToken && (settingStore.settings.addEmailVerify === 0 || (settingStore.settings.addEmailVerify === 2 && settingStore.settings.addVerifyOpen))) {
+  const hasSiteKey = Boolean(String(settingStore.settings.siteKey || '').trim())
+
+  if (hasSiteKey && !verifyToken && (settingStore.settings.addEmailVerify === 0 || (settingStore.settings.addEmailVerify === 2 && settingStore.settings.addVerifyOpen))) {
     if (turnstileRecoveryAttempted) return
     if (!verifyShow.value) {
       verifyShow.value = true
@@ -491,7 +493,7 @@ function submit() {
             recoverTurnstile()
           }
         } else {
-          window.turnstile.reset('.add-email-turnstile')
+          window.turnstile.reset(turnstileId)
         }
       })
     } else if (botJsError.value) {
@@ -512,7 +514,7 @@ function submit() {
     addForm.email = ''
     accounts.push(account)
     verifyToken = ''
-    settingStore.settings.addVerifyOpen = account.addVerifyOpen
+    settingStore.settings.addVerifyOpen = hasSiteKey ? account.addVerifyOpen : false
     ElMessage({
       message: t('addSuccessMsg'),
       type: "success",
@@ -522,7 +524,7 @@ function submit() {
     showAdd.value = false
     userStore.refreshUserInfo()
   }).catch(res => {
-    if (res.code === 400) {
+    if (res.code === 400 && hasSiteKey) {
       verifyToken = ''
       if (turnstileId) {
         window.turnstile.reset(turnstileId)
