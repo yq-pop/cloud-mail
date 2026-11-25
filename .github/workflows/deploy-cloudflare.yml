@@ -1,7 +1,12 @@
 name: 🚀 Deploy cloud-mail to Cloudflare Workers
 
 on:
-  # 仅保留手动触发，避免 push main 时用单域名/Secrets 覆盖线上多域名及控制台变量
+  push:
+    branches: [ main ]
+    paths:
+      - "mail-worker/**"
+      - "mail-vue/**"
+      - ".github/workflows/deploy-cloudflare.yml"
   workflow_dispatch:
 
 jobs:
@@ -108,8 +113,15 @@ jobs:
             sed -i '/^project_link = /d' "$CONFIG_FILE"
           fi
           
-          if [ -z "$CUSTOM_DOMAIN" ]; then
-            sed -i '/\[\[routes\]\]/,/^$/d' "$CONFIG_FILE"
+          sed -i '/\[\[routes\]\]/,/^$/d' "$CONFIG_FILE"
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            IFS=',' read -ra CUSTOM_DOMAINS <<< "$CUSTOM_DOMAIN"
+            for item in "${CUSTOM_DOMAINS[@]}"; do
+              domain_item=$(echo "$item" | xargs)
+              if [ -n "$domain_item" ]; then
+                printf '\n[[routes]]\npattern = "%s"\ncustom_domain = true\n' "$domain_item" >> "$CONFIG_FILE"
+              fi
+            done
           fi
           
           if [ -n "$EMAIL" ]; then
@@ -121,7 +133,6 @@ jobs:
           fi
 
           sed -i "s|\${NAME}|${NAME}|g" "$CONFIG_FILE"
-          sed -i "s|\${CUSTOM_DOMAIN}|${CUSTOM_DOMAIN}|g" "$CONFIG_FILE"
           sed -i "s|\"\${DOMAIN}\"|${DOMAIN}|g" "$CONFIG_FILE"
           sed -i "s|\${ADMIN}|${ADMIN}|g" "$CONFIG_FILE"
           sed -i "s|\${PASSWORD}|${PASSWORD}|g" "$CONFIG_FILE"
@@ -217,7 +228,8 @@ jobs:
         working-directory: ./mail-worker
         run: |
           echo "🚀 Starting deployment..."
-          pnpm wrangler deploy -c wrangler-action.toml 2>&1 \
+          COMMIT_MSG=$(git log -1 --pretty=%s || echo "Deploy cloud-mail")
+          pnpm wrangler deploy -c wrangler-action.toml --message "$COMMIT_MSG" 2>&1 \
             | tee deploy.log \
             | grep -v "https://.*\.workers\.dev" \
             | sed -E 's/env\.domain .*/env.domain (***)/' \
@@ -242,7 +254,8 @@ jobs:
           echo "🛠️ Starting database initialization..."
           sleep 15
           
-          WORKER_URL="${CUSTOM_DOMAIN:+https://$CUSTOM_DOMAIN}"
+          FIRST_DOMAIN=$(echo "$CUSTOM_DOMAIN" | cut -d',' -f1 | xargs)
+          WORKER_URL="${FIRST_DOMAIN:+https://$FIRST_DOMAIN}"
           WORKER_URL="${WORKER_URL:-${{ steps.deploy.outputs.worker_url }}}"
           
           if [ -z "$WORKER_URL" ]; then
