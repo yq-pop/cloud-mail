@@ -16,11 +16,18 @@
                  @refresh-success="onRefreshSuccess"
                  @right-search="rightSearch"
                  :highlight-text="allEmailStore.searchParams.text"
+                 :search-store="allEmailStore"
+                 :search-options="searchOptions"
+                 :show-search-status="true"
                  :type="'all-email'"
 
     >
       <template #first>
-        <Icon class="icon" icon="fluent:broom-sparkle-16-regular" width="22" height="22" @click="openBathDelete"/>
+        <el-tooltip effect="dark" :content="$t('clearEmail')" placement="bottom" :show-after="300">
+          <button type="button" class="tool-icon-btn" :aria-label="$t('clearEmail')" @click="openBathDelete">
+            <Icon icon="fluent:broom-sparkle-16-regular" width="18" height="18" />
+          </button>
+        </el-tooltip>
       </template>
     </emailScroll>
     <el-dialog v-model="showBathDelete" :title="$t('clearEmail')" width="335"
@@ -54,7 +61,7 @@
 <script setup>
 import {starAdd, starCancel} from "@/request/star.js";
 import emailScroll from "@/components/email-scroll/index.vue"
-import {defineOptions, reactive, ref, watch, onMounted, onBeforeUnmount} from "vue";
+import {computed, defineOptions, reactive, ref, watch, onMounted, onBeforeUnmount} from "vue";
 import {useAllEmailStore} from "@/store/all-email.js";
 import {useEmailStore} from "@/store/email.js";
 import {
@@ -84,6 +91,14 @@ const sysEmailScroll = ref({})
 const showBathDelete = ref(false)
 const clearLoading = ref(false)
 let pullTimer = null
+
+const searchOptions = computed(() => [
+  {label: t('subject'), type: 'subject'},
+  {label: t('sender'), type: 'sender'},
+  {label: t('searchSenderAddress'), type: 'senderAddress'},
+  {label: t('user'), type: 'user'},
+  {label: t('selectEmail'), type: 'account'},
+])
 
 onMounted(() => {
   // 全部邮件实时：连共享 hub，含无人收件；重连后补拉
@@ -340,7 +355,7 @@ async function pullLatest() {
   }
 }
 
-:deep(.el-date-editor.el-input__wrapper) {
+.clear-email :deep(.el-date-editor.el-input__wrapper) {
   width: 303px;
 }
 

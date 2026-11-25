@@ -9,6 +9,8 @@
                :email-read="emailRead"
                :show-unread="true"
                :highlight-text="emailStore.searchParams.text"
+               :search-store="emailStore"
+               :search-options="searchOptions"
                actionLeft="4px"
                @jump="jumpContent"
                @refresh-success="onRefreshSuccess"
@@ -23,7 +25,8 @@ import {useSettingStore} from "@/store/setting.js";
 import emailScroll from "@/components/email-scroll/index.vue"
 import {emailList, emailDelete, emailLatest, emailRead} from "@/request/email.js";
 import {starAdd, starCancel} from "@/request/star.js";
-import {defineOptions, onBeforeUnmount, onMounted, ref, watch} from "vue";
+import {computed, defineOptions, onBeforeUnmount, onMounted, ref, watch} from "vue";
+import {useI18n} from "vue-i18n";
 import {sleep} from "@/utils/time-utils.js";
 import router from "@/router/index.js";
 import {
@@ -35,12 +38,20 @@ defineOptions({
   name: 'email'
 })
 
+const {t} = useI18n();
 const emailStore = useEmailStore();
 const accountStore = useAccountStore();
 const settingStore = useSettingStore();
 const scroll = ref({})
 const existIds = new Set();
 let pullTimer = null
+
+const searchOptions = computed(() => [
+  {label: t('subject'), type: 'subject'},
+  {label: t('searchSummaryContent'), type: 'content'},
+  {label: t('sender'), type: 'sender'},
+  {label: t('searchSenderAddress'), type: 'senderAddress'},
+])
 
 onMounted(() => {
   emailStore.emailScroll = scroll;

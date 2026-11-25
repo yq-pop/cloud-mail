@@ -1,29 +1,95 @@
 <template>
   <div class="email-container">
-    <div class="header-actions">
-      <el-checkbox
+    <inline-mail-search
+      v-if="hasInlineSearch"
+      :search-store="searchStore"
+      :search-options="searchOptions"
+      :show-search-status="showSearchStatus"
+    >
+      <template #row1-right>
+        <span class="email-count" v-if="showEmailCount">{{ $t('emailCount', {total: total}) }}</span>
+        <el-tooltip v-if="showAccountIcon" effect="dark" :content="$t('toggleAccountSidebar')" placement="bottom" :show-after="300">
+          <button
+            type="button"
+            class="tool-icon-btn"
+            :class="{ 'is-active': uiStore.accountShow }"
+            :aria-label="$t('toggleAccountSidebar')"
+            @click="changeAccountShow"
+          >
+            <Icon icon="akar-icons:dot-grid-fill" width="15" height="15" />
+          </button>
+        </el-tooltip>
+      </template>
+
+      <template #row2-left>
+        <div class="mail-ops-group">
+          <el-checkbox
+            class="select-all-checkbox"
+            v-model="checkAll"
+            :indeterminate="isIndeterminate"
+            :disabled="!emailList.length || loading"
+            @change="handleCheckAllChange"
+          />
+          <el-tooltip effect="dark" :content="$t('refresh')" placement="bottom" :show-after="300">
+            <button type="button" class="tool-icon-btn" :aria-label="$t('refresh')" @click="refresh">
+              <Icon icon="ion:reload" width="16" height="16" />
+            </button>
+          </el-tooltip>
+          <slot name="first"></slot>
+          <el-tooltip v-if="canDelete && selectedCount > 0" effect="dark" :content="$t('delete')" placement="bottom" :show-after="300">
+            <button type="button" class="tool-icon-btn is-danger" :aria-label="$t('delete')" @click="handleDelete">
+              <Icon icon="uiw:delete" width="15" height="15" />
+            </button>
+          </el-tooltip>
+          <el-tooltip v-if="canMarkRead && selectedCount > 0 && showUnread" effect="dark" :content="$t('markAsRead')" placement="bottom" :show-after="300">
+            <button type="button" class="tool-icon-btn is-primary" :aria-label="$t('markAsRead')" @click="handleRead">
+              <Icon icon="fluent:mail-read-20-regular" width="19" height="19" />
+            </button>
+          </el-tooltip>
+        </div>
+      </template>
+    </inline-mail-search>
+
+    <div v-else class="header-actions">
+      <div class="mail-ops-group">
+        <el-checkbox
+          class="select-all-checkbox"
           v-model="checkAll"
           :indeterminate="isIndeterminate"
           :disabled="!emailList.length || loading"
           @change="handleCheckAllChange"
-      >
-      </el-checkbox>
-      <div class="header-left" :style="'padding-left:' + actionLeft">
-
-        <Icon class="icon reload" icon="ion:reload" width="18" height="18" @click="refresh"/>
+        />
+        <el-tooltip effect="dark" :content="$t('refresh')" placement="bottom" :show-after="300">
+          <button type="button" class="tool-icon-btn" :aria-label="$t('refresh')" @click="refresh">
+            <Icon icon="ion:reload" width="16" height="16" />
+          </button>
+        </el-tooltip>
         <slot name="first"></slot>
-        <Icon v-perm="'email:delete'" class="icon delete" icon="uiw:delete" width="16" height="16"
-              v-if="getSelectedMailsIds().length > 0"
-              @click="handleDelete"/>
-        <Icon v-perm="'email:delete'" class="icon delete" icon="fluent:mail-read-20-regular" width="21" height="21"
-              v-if="getSelectedMailsIds().length > 0 && showUnread"
-              @click="handleRead"/>
+        <el-tooltip v-if="canDelete && selectedCount > 0" effect="dark" :content="$t('delete')" placement="bottom" :show-after="300">
+          <button type="button" class="tool-icon-btn is-danger" :aria-label="$t('delete')" @click="handleDelete">
+            <Icon icon="uiw:delete" width="15" height="15" />
+          </button>
+        </el-tooltip>
+        <el-tooltip v-if="canMarkRead && selectedCount > 0 && showUnread" effect="dark" :content="$t('markAsRead')" placement="bottom" :show-after="300">
+          <button type="button" class="tool-icon-btn is-primary" :aria-label="$t('markAsRead')" @click="handleRead">
+            <Icon icon="fluent:mail-read-20-regular" width="19" height="19" />
+          </button>
+        </el-tooltip>
       </div>
 
       <div class="header-right">
-        <span class="email-count" v-if="total">{{ $t('emailCount', {total: total}) }}</span>
-        <Icon v-if="showAccountIcon" class="more-icon icon" width="16" height="16" icon="akar-icons:dot-grid-fill"
-              @click="changeAccountShow"/>
+        <span class="email-count" v-if="showEmailCount">{{ $t('emailCount', {total: total}) }}</span>
+        <el-tooltip v-if="showAccountIcon" effect="dark" :content="$t('toggleAccountSidebar')" placement="bottom" :show-after="300">
+          <button
+            type="button"
+            class="tool-icon-btn"
+            :class="{ 'is-active': uiStore.accountShow }"
+            :aria-label="$t('toggleAccountSidebar')"
+            @click="changeAccountShow"
+          >
+            <Icon icon="akar-icons:dot-grid-fill" width="15" height="15" />
+          </button>
+        </el-tooltip>
       </div>
     </div>
 
@@ -237,6 +303,7 @@
 <script setup>
 import {Icon} from "@iconify/vue";
 import skeletonBlock from "@/components/email-scroll/skeleton/index.vue"
+import InlineMailSearch from "@/components/inline-mail-search/index.vue"
 import {computed, onActivated, reactive, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
 import {useEmailStore} from "@/store/email.js";
 import {useUiStore} from "@/store/ui.js";
@@ -247,6 +314,7 @@ import {useI18n} from "vue-i18n";
 import {EmailUnreadEnum} from "@/enums/email-enum.js";
 import { UseVirtualList } from '@vueuse/components'
 import { useScroll } from '@vueuse/core'
+import { hasPerm } from "@/perm/perm.js"
 
 const props = defineProps({
   getEmailList: Function,
@@ -299,6 +367,18 @@ const props = defineProps({
   highlightText: {
     type: String,
     default: ''
+  },
+  searchStore: {
+    type: Object,
+    default: null
+  },
+  searchOptions: {
+    type: Array,
+    default: () => []
+  },
+  showSearchStatus: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -318,6 +398,12 @@ const checkAll = ref(false);
 const isIndeterminate = ref(false);
 const scroll = ref(null)
 const firstLoad = ref(true)
+
+const hasInlineSearch = computed(() => Boolean(props.searchStore && props.searchOptions?.length))
+const selectedCount = computed(() => emailList.filter(item => item.checked).length)
+const canDelete = computed(() => props.type === 'all-email' ? hasPerm('all-email:delete') : hasPerm('email:delete'))
+const canMarkRead = computed(() => hasPerm('email:delete'))
+const showEmailCount = computed(() => total.value > 0 || (!firstLoad.value && typeof total.value === 'number'))
 let scrollTop = 0
 const latestEmail = ref(null)
 const scrollbarRef = ref(null)
@@ -993,6 +1079,7 @@ function renderHighlight(value) {
 .scroll {
   margin: 0;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
 
   .virtual {
@@ -1363,49 +1450,120 @@ function renderHighlight(value) {
 }
 
 .header-actions {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 3px 15px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 15px 9px;
+  background: var(--el-bg-color);
   box-shadow: var(--header-actions-border);
 
-  .header-left {
+  .header-right {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    position: relative;
-    column-gap: 20px;
-    row-gap: 8px;
-    padding-left: 2px;
-    color: var(--el-text-color-primary);;
+    gap: 8px;
+    flex-shrink: 0;
+    color: var(--el-text-color-primary);
+  }
+}
+
+.mail-ops-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+
+  .select-all-checkbox {
+    height: 30px;
+    margin-right: 4px;
   }
 
-  .header-right {
-    display: grid;
-    grid-template-columns: auto auto;
-    align-items: start;
-    height: 100%;
-    color: var(--el-text-color-primary);;
+  :deep(.tool-icon-btn) {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-regular);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 
-    .email-count {
-      white-space: nowrap;
-      margin-top: 6px;
+    &:hover:not(:disabled) {
+      background: var(--el-fill-color-light);
+      color: var(--el-text-color-primary);
+    }
+
+    &.is-primary:hover:not(:disabled) {
+      background: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
+      border-color: var(--el-color-primary-light-7);
+    }
+
+    &.is-danger:hover:not(:disabled) {
+      background: var(--el-color-danger-light-9);
+      color: var(--el-color-danger);
+      border-color: var(--el-color-danger-light-7);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
   }
+}
 
-  .icon {
-    font-size: 18px;
-    cursor: pointer;
+.email-count {
+  font-size: 12.5px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-icon-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-regular);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-primary);
   }
 
-  .reload {
-    margin-left: 2px;
+  &.is-active {
+    background: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
   }
 
-  .more-icon {
-    margin-top: 8px;
-    margin-left: 15px;
+  &.is-primary:hover:not(:disabled) {
+    background: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary-light-7);
+  }
+
+  &.is-danger:hover:not(:disabled) {
+    background: var(--el-color-danger-light-9);
+    color: var(--el-color-danger);
+    border-color: var(--el-color-danger-light-7);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 }
 

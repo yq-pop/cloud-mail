@@ -16,28 +16,6 @@
         </el-icon>
       </el-button>
     </div>
-    <email-search
-      v-if="showInboxSearch"
-      :store="emailStore"
-      :search-options="inboxSearchOptions"
-      :class="{ 'account-show': accountPanelShow }"
-      @search="returnToList('email')"
-      @reset="returnToList('email')"
-    />
-    <email-search
-      v-else-if="showSentSearch"
-      :store="sendStore"
-      :search-options="sentSearchOptions"
-      :class="{ 'account-show': accountPanelShow }"
-      @search="returnToList('send')"
-      @reset="returnToList('send')"
-    />
-    <all-email-search
-      v-else-if="showAllMailSearch"
-      :class="{ 'account-show': accountPanelShow }"
-      @search="returnToList('all-email')"
-      @reset="returnToList('all-email')"
-    />
     <div class="toolbar">
       <el-dropdown
         ref="userDropdownRef"
@@ -111,53 +89,17 @@ import {useSettingStore} from "@/store/setting.js";
 import {hasPerm} from "@/perm/perm.js"
 import {useI18n} from "vue-i18n";
 import {setExtend} from "@/utils/day.js"
-import emailSearch from '@/components/email-search/index.vue'
-import allEmailSearch from '@/components/all-email-search/index.vue'
-import {useEmailStore} from '@/store/email.js'
-import {useSendStore} from '@/store/send.js'
 
 const {t} = useI18n();
 const route = useRoute();
 const settingStore = useSettingStore();
 const userStore = useUserStore();
 const uiStore = useUiStore();
-const emailStore = useEmailStore()
-const sendStore = useSendStore()
 const logoutLoading = ref(false)
 const userDropdownRef = ref(null)
 const userCardVisible = ref(false)
 const outsidePointerEvents = ['mousedown', 'pointerup', 'mouseup', 'click', 'pointercancel']
 let blockOutsideClick = false
-const inboxSearchOptions = computed(() => [
-  {label: t('subject'), type: 'subject'},
-  {label: t('searchSummaryContent'), type: 'content'},
-  {label: t('sender'), type: 'sender'},
-  {label: t('searchSenderAddress'), type: 'senderAddress'},
-])
-const sentSearchOptions = computed(() => [
-  {label: t('subject'), type: 'subject'},
-  {label: t('searchSummaryContent'), type: 'content'},
-  {label: t('searchRecipientAddress'), type: 'recipientAddress'},
-])
-const accountPanelShow = computed(() => uiStore.accountShow && hasPerm('account:query'))
-const showInboxSearch = computed(() =>
-  route.meta.name === 'email' || isMailboxDetail('inbox')
-)
-const showSentSearch = computed(() =>
-  route.meta.name === 'send' || isMailboxDetail('sent')
-)
-const showAllMailSearch = computed(() =>
-  route.meta.name === 'all-email' || isMailboxDetail('all-mail')
-)
-
-function isMailboxDetail(mailbox) {
-  return route.meta.name === 'content' && route.params.mailbox === mailbox
-}
-
-function returnToList(listName) {
-  if (route.meta.name !== 'content') return
-  router.push({name: listName})
-}
 
 const accountCount = computed(() => {
   return userStore.user.role.accountCount

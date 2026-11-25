@@ -1,29 +1,102 @@
 <template>
   <div class="user-box">
-    <div class="header-actions">
-      <Icon class="icon" icon="ion:add-outline" width="23" height="23" @click="openAdd"/>
-      <div class="search">
-        <el-input
-            v-model="params.email"
-            class="search-input"
-            :placeholder="$t('searchByEmail')"
-        >
-        </el-input>
+    <div class="user-toolbar">
+      <div class="toolbar-row toolbar-row-top">
+        <div class="toolbar-row-top-left">
+          <div class="pill-group">
+            <span class="pill-group-label">{{ $t('userStatus') }}</span>
+            <div class="segmented-pills" role="radiogroup" :aria-label="$t('userStatus')">
+              <button
+                v-for="option in statusOptions"
+                :key="option.value"
+                type="button"
+                class="pill-item"
+                :class="{ active: params.status === option.value }"
+                role="radio"
+                :aria-checked="params.status === option.value"
+                @click="selectStatus(option.value)"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="pill-group">
+            <span class="pill-group-label">{{ $t('registerSort') }}</span>
+            <div class="segmented-pills" role="radiogroup" :aria-label="$t('registerSort')">
+              <button
+                v-for="option in sortOptions"
+                :key="option.value"
+                type="button"
+                class="pill-item"
+                :class="{ active: !hasTableSort && params.timeSort === option.value }"
+                role="radio"
+                :aria-checked="!hasTableSort && params.timeSort === option.value"
+                @click="selectTimeSort(option.value)"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar-row-top-right">
+          <span class="user-count" v-if="!first || total > 0">{{ $t('userCount', {total: total}) }}</span>
+        </div>
       </div>
-      <el-select v-model="params.status" placeholder="Select" class="status-select"
-                 :style="`width: ${locale === 'en' ? 95 : 80 }px`">
-        <el-option :key="-1" :label="$t('all')" :value="-1"/>
-        <el-option :key="0" :label="$t('active')" :value="0"/>
-        <el-option :key="1" :label="$t('banned')" :value="1"/>
-        <el-option :key="-2" :label="$t('deleted')" :value="-2"/>
-      </el-select>
-      <Icon class="icon" icon="iconoir:search" @click="search" width="20" height="20"/>
-      <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-down-outline"
-            v-if="params.timeSort === 1" width="28" height="28"/>
-      <Icon class="icon" @click="changeTimeSort" icon="material-symbols-light:timer-arrow-up-outline" v-else width="28"
-            height="28"/>
-      <Icon class="icon" icon="ion:reload" width="18" height="18" @click="refresh"/>
-      <Icon class="icon" icon="uiw:delete" width="16" height="16" @click="delUser"/>
+
+      <div class="toolbar-row toolbar-row-bottom">
+        <div class="user-ops-group">
+          <el-tooltip effect="dark" :content="$t('addUser')" placement="bottom" :show-after="300">
+            <button type="button" class="tool-icon-btn is-primary" :aria-label="$t('addUser')" @click="openAdd">
+              <Icon icon="ion:add-outline" width="19" height="19" />
+            </button>
+          </el-tooltip>
+          <el-tooltip effect="dark" :content="$t('refresh')" placement="bottom" :show-after="300">
+            <button type="button" class="tool-icon-btn" :aria-label="$t('refresh')" @click="refresh">
+              <Icon icon="ion:reload" width="16" height="16" />
+            </button>
+          </el-tooltip>
+          <el-tooltip effect="dark" :content="$t('delete')" placement="bottom" :show-after="300">
+            <button
+              type="button"
+              class="tool-icon-btn is-danger"
+              :aria-label="$t('delete')"
+              :disabled="selectedUsers.length === 0"
+              @click="delUser"
+            >
+              <Icon icon="uiw:delete" width="15" height="15" />
+            </button>
+          </el-tooltip>
+        </div>
+
+        <span class="toolbar-divider" aria-hidden="true" />
+
+        <div class="search-controls">
+          <el-input
+            v-model="params.email"
+            class="search-keyword-input"
+            clearable
+            autocomplete="off"
+            :placeholder="$t('searchByEmail')"
+            @keyup.enter="search"
+            @clear="search"
+          >
+            <template #prefix>
+              <Icon icon="iconoir:search" width="15" height="15" class="input-prefix-icon" />
+            </template>
+          </el-input>
+
+          <div class="search-btn-group">
+            <el-button type="primary" class="search-action-btn" @click="search">
+              {{ $t('search') }}
+            </el-button>
+            <el-button class="search-action-btn" :disabled="!hasActiveFilter" @click="resetFilters">
+              {{ $t('reset') }}
+            </el-button>
+          </div>
+        </div>
+      </div>
     </div>
     <el-scrollbar ref="scrollbarRef" class="scrollbar">
       <div>
@@ -33,6 +106,8 @@
         </div>
         <el-table
             @filter-change="tableFilter"
+            @selection-change="handleSelectionChange"
+            @sort-change="handleTableSortChange"
             :empty-text="first ? '' : null"
             :data="users"
             :preserve-expanded-content="preserveExpanded"
@@ -377,7 +452,7 @@
 </template>
 
 <script setup>
-import {defineOptions, h, reactive, ref, watch} from 'vue'
+import {computed, defineOptions, h, onBeforeUnmount, onMounted, reactive, ref, watch} from 'vue'
 import {
   userList,
   userDelete,
@@ -475,6 +550,28 @@ const params = reactive({
   timeSort: 0,
   status: -1
 })
+const selectedUsers = ref([])
+const tableSortState = reactive({
+  prop: '',
+  order: ''
+})
+const hasTableSort = computed(() => Boolean(tableSortState.prop && tableSortState.order))
+const statusOptions = computed(() => [
+  {label: t('all'), value: -1},
+  {label: t('active'), value: 0},
+  {label: t('banned'), value: 1},
+  {label: t('deleted'), value: -2},
+])
+const sortOptions = computed(() => [
+  {label: t('newestFirst'), value: 0},
+  {label: t('oldestFirst'), value: 1},
+])
+const hasActiveFilter = computed(() =>
+  Boolean((params.email || '').trim())
+  || params.status !== -1
+  || params.timeSort !== 0
+  || hasTableSort.value
+)
 let chooseUser = {}
 const userForm = reactive({
   password: null,
@@ -505,17 +602,36 @@ roleSelectUse().then(list => {
   roleList.push(...list)
 })
 
+const VALID_PAGE_SIZES = new Set([10, 15, 20, 25, 30, 50])
+const VALID_STATUSES = new Set([-1, 0, 1, -2])
+const VALID_TIME_SORTS = new Set([0, 1])
+
 const paramsStar = localStorage.getItem('user-params')
 if (paramsStar) {
-  const localParams = JSON.parse(paramsStar)
-  params.num = localParams.num
-  params.size = localParams.size
-  params.timeSort = localParams.timeSort
-  params.status = localParams.status
+  try {
+    const localParams = JSON.parse(paramsStar)
+    if (localParams && typeof localParams === 'object') {
+      const num = Number(localParams.num)
+      const size = Number(localParams.size)
+      const timeSort = Number(localParams.timeSort)
+      const status = Number(localParams.status)
+      params.num = Number.isInteger(num) && num >= 1 ? num : 1
+      params.size = VALID_PAGE_SIZES.has(size) ? size : 15
+      params.timeSort = VALID_TIME_SORTS.has(timeSort) ? timeSort : 0
+      params.status = VALID_STATUSES.has(status) ? status : -1
+    }
+  } catch {
+    localStorage.removeItem('user-params')
+  }
 }
 
-watch(() => params, () => {
-  localStorage.setItem('user-params', JSON.stringify(params))
+watch(() => ({
+  num: params.num,
+  size: params.size,
+  timeSort: params.timeSort,
+  status: params.status
+}), (val) => {
+  localStorage.setItem('user-params', JSON.stringify(val))
 }, {
   deep: true
 })
@@ -834,8 +950,8 @@ function resetSendCount(user) {
   });
 }
 
-function delUser(user) {
-  const rows = tableRef.value.getSelectionRows();
+function delUser() {
+  const rows = tableRef.value?.getSelectionRows?.() || selectedUsers.value;
   const userIds = rows.map(row => row.userId);
   if (userIds.length === 0) {
     return;
@@ -942,7 +1058,35 @@ function resetUserForm() {
   userForm.userId = 0
 }
 
+function handleSelectionChange(rows) {
+  selectedUsers.value = Array.isArray(rows) ? rows : []
+}
+
+function handleTableSortChange({ prop, order }) {
+  tableSortState.prop = order ? (prop || '') : ''
+  tableSortState.order = order || ''
+}
+
+function selectStatus(status) {
+  if (params.status === status) return
+  params.status = status
+  params.num = 1
+  getUserList()
+}
+
+function selectTimeSort(timeSort) {
+  const hadTableSort = hasTableSort.value
+  if (!hadTableSort && params.timeSort === timeSort) return
+  tableRef.value?.clearSort?.()
+  tableSortState.prop = ''
+  tableSortState.order = ''
+  params.timeSort = timeSort
+  params.num = 1
+  getUserList()
+}
+
 function search() {
+  params.email = (params.email || '').trim()
   params.num = 1
   getUserList()
 }
@@ -995,10 +1139,7 @@ function openSetPwd(user) {
 }
 
 function refresh() {
-  params.email = ''
-  params.num = 1
-  params.status = -1
-  params.timeSort = 0
+  params.email = (params.email || '').trim()
   getUserList();
   roleSelectUse().then(list => {
     roleList.length = 0
@@ -1006,9 +1147,14 @@ function refresh() {
   })
 }
 
-function changeTimeSort() {
+function resetFilters() {
+  params.email = ''
   params.num = 1
-  params.timeSort = params.timeSort ? 0 : 1
+  params.status = -1
+  params.timeSort = 0
+  tableRef.value?.clearSort?.()
+  tableSortState.prop = ''
+  tableSortState.order = ''
   getUserList()
 }
 
@@ -1025,13 +1171,17 @@ function sizeChange(size) {
 function getUserList(loading = true) {
 
   tableLoading.value = loading
-  const newParams = {...params}
+  const newParams = {
+    ...params,
+    email: (params.email || '').trim(),
+  }
 
   if (newParams.status === -2) {
     delete newParams.status
     newParams.isDel = 1
   }
   userList(newParams).then(data => {
+    selectedUsers.value = []
     users.value = data.list.map(item => ({...item, checkedClass: ''}))
     total.value = data.total
     scrollbarRef.value?.setScrollTop(0);
@@ -1043,11 +1193,15 @@ function getUserList(loading = true) {
   })
 }
 
-window.onresize = () => {
-  adjustWidth()
-};
-
 adjustWidth()
+
+onMounted(() => {
+  window.addEventListener('resize', adjustWidth)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', adjustWidth)
+})
 
 function adjustWidth() {
   const width = window.innerWidth
@@ -1088,6 +1242,8 @@ function adjustWidth() {
 }
 
 .user-box {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   height: 100%;
 }
@@ -1110,31 +1266,265 @@ function adjustWidth() {
   }
 }
 
-.header-actions {
-  padding: 9px 15px;
+.user-toolbar {
   display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 15px 9px;
+  background: var(--el-bg-color);
   box-shadow: var(--header-actions-border);
-  font-size: 18px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
 
-  .search-input {
-    width: min(200px, calc(100vw - 140px));
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.toolbar-row-top {
+  justify-content: space-between;
+}
+
+.toolbar-row-top-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.toolbar-row-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.user-count {
+  font-size: 12.5px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pill-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pill-group-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.segmented-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  box-sizing: border-box;
+}
+
+.pill-item {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 26px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+
+  &:hover:not(.active) {
+    color: var(--el-text-color-primary);
   }
 
-  .search {
-    :deep(.el-input-group) {
-      height: 28px;
-    }
+  &.active {
+    background: var(--el-bg-color);
+    color: var(--el-color-primary);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+}
 
-    :deep(.el-input__inner) {
-      height: 28px;
-    }
+.toolbar-row-bottom {
+  gap: 8px;
+}
+
+.user-ops-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tool-icon-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-regular);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-primary);
   }
 
-  .icon {
-    cursor: pointer;
+  &.is-primary:hover:not(:disabled) {
+    background: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary-light-7);
+  }
+
+  &.is-danger:hover:not(:disabled) {
+    background: var(--el-color-danger-light-9);
+    color: var(--el-color-danger);
+    border-color: var(--el-color-danger-light-7);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--el-border-color-lighter);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.search-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.input-prefix-icon {
+  color: var(--el-text-color-placeholder);
+}
+
+.search-keyword-input {
+  flex: 1 1 200px;
+  min-width: 160px;
+  max-width: 320px;
+
+  :deep(.el-input__wrapper) {
+    height: 34px;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+}
+
+.search-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.search-action-btn {
+  height: 34px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 13px;
+  margin-left: 0 !important;
+}
+
+@media (max-width: 767px) {
+  .toolbar-row-top {
+    gap: 6px;
+  }
+
+  .toolbar-row-top-left {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .toolbar-row-top-right {
+    width: 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
+  .pill-group {
+    width: 100%;
+  }
+
+  .pill-group-label {
+    display: none;
+  }
+
+  .segmented-pills {
+    display: flex;
+    width: 100%;
+  }
+
+  .pill-item {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 4px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .toolbar-divider {
+    display: none;
+  }
+
+  .user-ops-group {
+    width: 100%;
+  }
+
+  .search-controls {
+    width: 100%;
+  }
+
+  .search-keyword-input {
+    flex: 1 1 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .search-btn-group {
+    width: 100%;
+  }
+
+  .search-action-btn {
+    flex: 1 1 0;
   }
 }
 
@@ -1155,12 +1545,11 @@ function adjustWidth() {
 }
 
 .scrollbar {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  overflow: auto;
-  height: calc(100% - 50px);
-  @media (max-width: 464px) {
-    height: calc(100% - 90px);
-  }
+  overflow: hidden;
 }
 
 .details {
@@ -1219,12 +1608,6 @@ function adjustWidth() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.status-select {
-  :deep(.el-select__wrapper) {
-    min-height: 28px;
-  }
 }
 
 .dialog {

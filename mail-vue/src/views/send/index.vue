@@ -9,6 +9,8 @@
                actionLeft="4px"
                :star-cancel="starCancel"
                :highlight-text="sendStore.searchParams.text"
+               :search-store="sendStore"
+               :search-options="searchOptions"
                @jump="jumpContent"
                :type="'send'"
   >
@@ -22,17 +24,25 @@ import {useSendStore} from "@/store/send.js";
 import emailScroll from "@/components/email-scroll/index.vue"
 import {emailList, emailDelete} from "@/request/email.js";
 import {starAdd, starCancel} from "@/request/star.js";
-import {defineOptions, onMounted, ref, watch} from "vue";
+import {computed, defineOptions, onMounted, ref, watch} from "vue";
+import {useI18n} from "vue-i18n";
 import router from "@/router/index.js";
 
 defineOptions({
   name: 'send'
 })
 
+const {t} = useI18n();
 const emailStore = useEmailStore();
 const sendStore = useSendStore();
 const accountStore = useAccountStore();
 const sendScroll = ref({})
+
+const searchOptions = computed(() => [
+  {label: t('subject'), type: 'subject'},
+  {label: t('searchSummaryContent'), type: 'content'},
+  {label: t('searchRecipientAddress'), type: 'recipientAddress'},
+])
 onMounted(() => {
   emailStore.sendScroll = sendScroll;
 })
