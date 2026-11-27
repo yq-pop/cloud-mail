@@ -108,21 +108,20 @@ const telegramService = {
 		const webAppUrl = baseUrl ? `${baseUrl}/api/telegram/getEmail/${jwtToken}` : 'https://www.cloudflare.com/404';
 		const translatedWebAppUrl = baseUrl ? `${webAppUrl}?translate=1` : 'https://www.cloudflare.com/404';
 
-		const actionRow = [
-			{
-				text: 'View',
-				web_app: { url: webAppUrl }
-			}
+		const inlineKeyboard = [
+			[
+				{
+					text: 'View',
+					web_app: { url: webAppUrl }
+				}
+			],
+			[
+				{
+					text: '翻译',
+					web_app: { url: translatedWebAppUrl }
+				}
+			]
 		];
-
-		if (translated && baseUrl) {
-			actionRow.push({
-				text: '译文',
-				web_app: { url: translatedWebAppUrl }
-			});
-		}
-
-		const inlineKeyboard = [actionRow];
 
 		if (email.code) {
 			inlineKeyboard.push([
