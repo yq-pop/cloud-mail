@@ -31,7 +31,8 @@ const REQUEST_TIMEOUT_MS = 20000;
 // Edge channel used by translate.js (MIT, xnx3) & PastKing/xi-mail.
 // Only explicit text arrays are sent; no cookies or user identifiers.
 const translationProvider = {
-	async translate(texts, targetServiceId, source = 'auto') {
+	async translate(texts, targetServiceId, source = 'auto', options = {}) {
+		const timeoutMs = Number(options?.timeoutMs) > 0 ? Number(options.timeoutMs) : REQUEST_TIMEOUT_MS;
 		if (!Array.isArray(texts) || texts.length === 0) {
 			return { texts: [], detectedLanguage: '' };
 		}
@@ -81,7 +82,7 @@ const translationProvider = {
 						'User-Agent': EDGE_UA,
 					},
 					body: JSON.stringify(values),
-					signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+					signal: AbortSignal.timeout(timeoutMs),
 				});
 
 				if (!response.ok) {
