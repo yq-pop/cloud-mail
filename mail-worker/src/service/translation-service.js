@@ -8,11 +8,12 @@ import translationProvider, { resolveTargetLanguage } from './translation-provid
 import { buildMailTranslationDocument } from './mail-translation-document';
 
 const CACHE_PREFIX = 'mail_translate:v1:';
+const TG_MSG_CACHE_PREFIX = 'tg_msg_translate:v1:';
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const RATE_PREFIX = 'mail_translate_rate:';
 const RATE_LIMIT_PER_MIN = 30;
-const TG_AUTO_TRANSLATE_TIMEOUT_MS = 6000;
-const TG_AUTO_TEXT_LIMIT = 2200;
+const TG_MSG_TEXT_LIMIT = 3200;
+const TG_MSG_TRANSLATE_TIMEOUT_MS = 12000;
 
 async function sha256Short(input) {
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
@@ -143,14 +144,26 @@ const translationService = {
 		};
 	},
 
-	async translateTelegramSummary(subject, text, target = 'zh') {
+	async translateTelegramMessage(c, mailRow, rawText, target = 'zh') {
 		const language = resolveTargetLanguage(target || 'zh');
-		if (!language) return null;
+		if (!language) {
+			throw new BizError('不支持的目标语言', 400);
+		}
 
-		const rawSubject = String(subject || '').trim();
-		const rawText = String(text || '').trim().slice(0, TG_AUTO_TEXT_LIMIT);
-		if (!shouldAutoTranslateToZh(rawSubject, rawText, '')) {
-			return null;
+		const rawSubject = String(mailRow?.subject || '').trim();
+		const clippedText = String(rawText || '').trim().slice(0, TG_MSG_TEXT_LIMIT);
+		const emailId = mailRow?.emailId || 0;
+		const sourceHash = await sha256Short(`${rawSubject}\n---\n${clippedText}`);
+		const cacheKey = `${TG_MSG_CACHE_PREFIX}${emailId}:${language.id}:${sourceHash}`;
+
+		const cached = await c.env.kv.get(cacheKey, { type: 'json' });
+		if (cached && typeof cached.subject === 'string') {
+			return {
+				subject: cached.subject,
+				text: cached.text || '',
+				detectedLanguage: cached.detectedLanguage || '',
+				cached: true,
+			};
 		}
 
 		const values = [];
@@ -160,33 +173,44 @@ const translationService = {
 			subjectIdx = values.length;
 			values.push(rawSubject);
 		}
-		if (rawText && /\p{L}/u.test(rawText)) {
+		if (clippedText && /\p{L}/u.test(clippedText)) {
 			textIdx = values.length;
-			values.push(rawText);
+			values.push(clippedText);
 		}
-		if (!values.length) return null;
+		if (!values.length) {
+			return {
+				subject: rawSubject,
+				text: clippedText,
+				detectedLanguage: '',
+				cached: false,
+			};
+		}
 
 		const { texts: translatedTexts, detectedLanguage } = await translationProvider.translate(
 			values,
 			language.serviceId,
 			'auto',
-			{ timeoutMs: TG_AUTO_TRANSLATE_TIMEOUT_MS }
+			{ timeoutMs: TG_MSG_TRANSLATE_TIMEOUT_MS }
 		);
 
 		const translatedSubject = subjectIdx >= 0 ? translatedTexts[subjectIdx] : rawSubject;
-		const translatedText = textIdx >= 0 ? translatedTexts[textIdx] : '';
+		const translatedText = textIdx >= 0 ? translatedTexts[textIdx] : clippedText;
 
-		if (
-			(!translatedSubject || translatedSubject.trim() === rawSubject) &&
-			(!translatedText || translatedText.trim() === rawText)
-		) {
-			return null;
-		}
+		await c.env.kv.put(
+			cacheKey,
+			JSON.stringify({
+				subject: translatedSubject || rawSubject,
+				text: translatedText || clippedText,
+				detectedLanguage,
+			}),
+			{ expirationTtl: CACHE_TTL_SECONDS }
+		);
 
 		return {
 			subject: translatedSubject || rawSubject,
-			text: translatedText,
+			text: translatedText || clippedText,
 			detectedLanguage,
+			cached: false,
 		};
 	},
 

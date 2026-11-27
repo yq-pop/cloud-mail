@@ -19,3 +19,15 @@ app.post('/telegram/translate/:token', async (c) => {
 	const data = await telegramService.translateEmailByToken(c, c.req.param('token'), body?.target || 'zh');
 	return c.json(result.ok(data));
 });
+
+app.post('/telegram/webhook', async (c) => {
+	let update = {};
+	try {
+		update = await c.req.json();
+	} catch {
+		update = {};
+	}
+	const secretHeader = c.req.header('X-Telegram-Bot-Api-Secret-Token') || '';
+	await telegramService.handleWebhook(c, update, secretHeader);
+	return c.json({ ok: true });
+});

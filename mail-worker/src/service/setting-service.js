@@ -187,6 +187,10 @@ const settingService = {
 
 		await orm(c).update(setting).set({ ...params }).returning().get();
 		await this.refresh(c);
+
+		if (params.tgBotToken !== undefined || params.customDomain !== undefined || params.tgBotStatus !== undefined) {
+			await c.env.kv.delete('tg_webhook_registered:v1');
+		}
 	},
 
 	async deleteBackground(c) {

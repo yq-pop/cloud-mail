@@ -1,5 +1,6 @@
 import settingService from '../service/setting-service';
 import userService from '../service/user-service';
+import telegramService from '../service/telegram-service';
 
 const dbInit = {
 	async init(c) {
@@ -26,6 +27,14 @@ const dbInit = {
 		await this.v3_6DB(c);
 		await userService.initAdmin(c);
 		await settingService.refresh(c);
+		const currentSetting = await settingService.query(c);
+		if (currentSetting?.tgBotStatus === 0 && currentSetting?.tgBotToken && currentSetting?.customDomain) {
+			await telegramService.ensureWebhook(c, {
+				tgBotToken: currentSetting.tgBotToken,
+				customDomain: currentSetting.customDomain,
+				force: true
+			});
+		}
 		return c.text('success');
 	},
 
